@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DLP Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 40px 16px;
+    }
+
+    .page-wrapper {
+      display: flex;
+      gap: 24px;
+      width: 100%;
+      max-width: 1160px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      padding: 32px;
+      width: 100%;
+    }
+    .inspector-card { flex: 1 1 560px; max-width: 660px; }
+    .dashboard-card  { flex: 1 1 300px; max-width: 400px; position: sticky; top: 40px; }
+
+    h1 { font-size: 1.4rem; margin-bottom: 6px; color: #1a1a2e; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-bottom: 24px; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e5e7eb;
+      padding-bottom: 0;
+    }
+    .tab-btn {
+      padding: 8px 20px;
+      border: none;
+      background: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #888;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      border-radius: 0;
+      width: auto;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: #4f46e5; background: none; }
+    .tab-btn.active { color: #4f46e5; border-bottom-color: #4f46e5; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      color: #222;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    input[type="text"]:focus, textarea:focus { border-color: #4f46e5; }
+    textarea { resize: vertical; min-height: 120px; }
+
+    /* File drop zone */
+    .drop-zone {
+      border: 2px dashed #c7d2fe;
+      border-radius: 10px;
+      padding: 32px 16px;
+      text-align: center;
+      cursor: pointer;
+      color: #6366f1;
+      background: #f5f3ff;
+      transition: background 0.2s, border-color 0.2s;
+      margin-bottom: 4px;
+    }
+    .drop-zone:hover, .drop-zone.over { background: #ede9fe; border-color: #818cf8; }
+    .drop-zone svg { display: block; margin: 0 auto 10px; }
+    .drop-zone .dz-label { font-weight: 600; font-size: 0.95rem; }
+    .drop-zone .dz-sub { font-size: 0.8rem; color: #a5b4fc; margin-top: 4px; }
+    #fileInput { display: none; }
+    #fileName {
+      font-size: 0.82rem;
+      color: #555;
+      margin-top: 8px;
+      min-height: 18px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .file-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .file-badge.pdf  { background: #fee2e2; color: #b91c1c; }
+    .file-badge.txt  { background: #dbeafe; color: #1d4ed8; }
+
+    .field { margin-bottom: 16px; }
+
+    button.send-btn {
+      width: 100%;
+      margin-top: 16px;
+      padding: 12px;
+      background: #4f46e5;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button.send-btn:hover { background: #4338ca; }
+    button.send-btn:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+    #result {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: none;
+    }
+    #result.allowed { background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; }
+    #result.blocked { background: #fff1f2; border: 1px solid #fca5a5; color: #991b1b; }
+    #result.error   { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+
+    /* DLP mode selector */
+    .mode-selector {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    .mode-selector .mode-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+    .mode-options { display: flex; gap: 8px; flex-wrap: wrap; }
+    .mode-options label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1.5px solid #e2e8f0;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #64748b;
+      background: #fff;
+      transition: all 0.15s;
+      margin: 0;
+    }
+    .mode-options input[type=radio] { display: none; }
+    .mode-options input[type=radio]:checked + span { font-weight: 700; }
+    .mode-options label:has(input[type=radio]:checked) {
+      border-color: #4f46e5;
+      background: #eef2ff;
+      color: #4338ca;
+    }
+    .mode-options label:hover { border-color: #a5b4fc; background: #f5f3ff; }
+    .mode-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .dot-local   { background: #6366f1; }
+    .dot-octopii { background: #059669; }
+    .file-badge.img { background: #d1fae5; color: #065f46; }
+
+    /* Octopii detail card */
+    #octopiiDetail {
+      margin-top: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 0.82rem;
+      color: #334155;
+      display: none;
+    }
+    .od-title {
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: #4f46e5;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .od-row { display: flex; gap: 8px; margin-bottom: 5px; }
+    .od-key { font-weight: 600; color: #64748b; min-width: 130px; flex-shrink: 0; }
+    .od-val { color: #1e293b; word-break: break-all; }
+
+    /* ── Risk indicators ──────────────────────────────────────────── */
+    .risk-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: inline-block;
+    }
+    .risk-dot.risk-high   { background: #ef4444; box-shadow: 0 0 0 3px #fee2e2; }
+    .risk-dot.risk-medium { background: #f59e0b; box-shadow: 0 0 0 3px #fef3c7; }
+    .risk-dot.risk-low    { background: #22c55e; box-shadow: 0 0 0 3px #dcfce7; }
+
+    .risk-badge {
+      padding: 2px 10px; border-radius: 12px;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; flex-shrink: 0;
+    }
+    .risk-badge.risk-high   { background: #fee2e2; color: #b91c1c; }
+    .risk-badge.risk-medium { background: #fef3c7; color: #92400e; }
+    .risk-badge.risk-low    { background: #dcfce7; color: #166534; }
+
+    /* ── Dashboard card ───────────────────────────────────────────── */
+    .db-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .db-title  { font-size: 1rem; font-weight: 700; color: #1a1a2e; }
+    .db-count  { font-size: 0.78rem; color: #94a3b8; }
+    .db-legend {
+      display: flex; gap: 12px; margin-bottom: 14px;
+      padding-bottom: 12px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #64748b; }
+    .db-empty  { font-size: 0.83rem; color: #94a3b8; text-align: center; padding: 32px 16px; line-height: 1.6; }
+    .scan-entry {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid #f1f5f9;
+    }
+    .scan-entry:last-child { border-bottom: none; }
+    .scan-info { flex: 1; min-width: 0; }
+    .scan-name { font-size: 0.85rem; font-weight: 600; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .scan-meta { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+  <div class="card inspector-card">
+    <h1>DLP Policy Demo</h1>
+    <p class="subtitle">Inspect text or a PDF file through the DLP pipeline.</p>
+
+    <div class="field">
+      <label for="urlInput">Destination URL</label>
+      <input type="text" id="urlInput" value="http://localhost:8080/upload" />
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('text', this)">Plain Text</button>
+      <button class="tab-btn" onclick="switchTab('file', this)">Upload File</button>
+    </div>
+
+    <!-- Text panel -->
+    <div id="panel-text" class="tab-panel active">
+      <label for="textInput">Content</label>
+      <textarea id="textInput" placeholder="Type or paste text here, e.g. SSN: 123-45-6789"></textarea>
+    </div>
+
+    <!-- File upload panel -->
+    <div id="panel-file" class="tab-panel">
+      <label>File</label>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()"
+           ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="1.6">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <span class="dz-label">Click or drag &amp; drop a file</span>
+        <span class="dz-sub">Accepted: .pdf, .txt</span>
+      </div>
+      <input type="file" id="fileInput" accept="application/pdf,.txt,text/plain" onchange="onFileSelect(event)" />
+      <div id="fileName">No file selected</div>
+    </div>
+
+    <!-- DLP engine selector -->
+    <div class="mode-selector">
+      <span class="mode-label">DLP Engine</span>
+      <div class="mode-options">
+        <label>
+          <input type="radio" name="dlpMode" value="local" checked onchange="onModeChange()" />
+          <span class="mode-dot dot-local"></span>
+          <span>Local (Regex)</span>
+        </label>
+        <label>
+          <input type="radio" name="dlpMode" value="octopii" onchange="onModeChange()" />
+          <span class="mode-dot dot-octopii"></span>
+          <span>Advanced DLP</span>
+        </label>
+      </div>
+    </div>
+    <div id="octopiiInfo" style="display:none; font-size:0.8rem; color:#065f46; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:6px; padding:8px 12px; margin-bottom:12px;">
+      Advanced DLP uses AI-powered scanning to detect PII in text, PDF &amp; image files (.jpg, .png). Image scans may take 30&ndash;60 s.
+    </div>
+
+    <button class="send-btn" id="sendBtn" onclick="sendToWebhook()">Inspect with DLP</button>
+    <div id="result"></div>
+    <div id="octopiiDetail"></div>
+  </div><!-- /inspector-card -->
+
+  <!-- ── Scan Dashboard ──────────────────────────────────────────── -->
+  <div class="card dashboard-card">
+    <div class="db-header">
+      <h2 class="db-title">Scan Dashboard</h2>
+      <span class="db-count" id="dbCount">0 scans</span>
+    </div>
+    <div class="db-legend">
+      <span class="legend-item"><span class="risk-dot risk-high"></span>&nbsp;High Risk</span>
+      <span class="legend-item"><span class="risk-dot risk-medium"></span>&nbsp;Medium Risk</span>
+      <span class="legend-item"><span class="risk-dot risk-low"></span>&nbsp;Low Risk</span>
+    </div>
+    <div id="scanList">
+      <p class="db-empty">No scans yet.<br>Run an inspection to see results.</p>
+    </div>
+  </div><!-- /dashboard-card -->
+  </div><!-- /page-wrapper -->
+
+  <script>
+    let activeTab = "text";
+    let selectedFile = null;
+
+    // ── Scan history (in-memory, resets on page refresh) ─────────────────────
+    const scanHistory = [];
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
+                      .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+
+    function addToHistory(name, riskLevel, engine) {
+      const time = new Date().toLocaleTimeString();
+      scanHistory.unshift({ name, riskLevel, engine, time });
+      if (scanHistory.length > 100) scanHistory.pop();
+      renderDashboard();
+    }
+
+    function renderDashboard() {
+      const list  = document.getElementById("scanList");
+      const count = document.getElementById("dbCount");
+      count.textContent = scanHistory.length + " scan" + (scanHistory.length !== 1 ? "s" : "");
+      if (scanHistory.length === 0) {
+        list.innerHTML = '<p class="db-empty">No scans yet.<br>Run an inspection to see results.</p>';
+        return;
+      }
+      list.innerHTML = scanHistory.map(entry => `
+        <div class="scan-entry">
+          <span class="risk-dot risk-${escHtml(entry.riskLevel)}"></span>
+          <div class="scan-info">
+            <div class="scan-name" title="${escHtml(entry.name)}">${escHtml(entry.name)}</div>
+            <div class="scan-meta">${escHtml(entry.engine)} &middot; ${escHtml(entry.time)}</div>
+          </div>
+          <span class="risk-badge risk-${escHtml(entry.riskLevel)}">${escHtml(entry.riskLevel.toUpperCase())}</span>
+        </div>
+      `).join("");
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function onModeChange() {
+      const mode = document.querySelector('input[name="dlpMode"]:checked').value;
+      document.getElementById("octopiiInfo").style.display = mode === "octopii" ? "block" : "none";
+      const fileInput = document.getElementById("fileInput");
+      const dzSub    = document.querySelector("#dropZone .dz-sub");
+      if (mode === "octopii") {
+        fileInput.accept = "application/pdf,.txt,text/plain,image/jpeg,image/png,.jpg,.jpeg,.png";
+        dzSub.textContent = "Accepted: .pdf, .txt, .jpg, .png";
+      } else {
+        fileInput.accept = "application/pdf,.txt,text/plain";
+        dzSub.textContent = "Accepted: .pdf, .txt";
+        if (selectedFile && /\.(jpg|jpeg|png)$/i.test(selectedFile.name)) {
+          selectedFile = null;
+          fileInput.value = "";
+          document.getElementById("fileName").innerHTML = "No file selected";
+        }
+      }
+    }
+
+    function getDlpMode() {
+      return document.querySelector('input[name="dlpMode"]:checked').value;
+    }
+
+    function switchTab(tab, btn) {
+      activeTab = tab;
+      selectedFile = null;
+      document.getElementById("fileName").innerHTML = "No file selected";
+      const fi = document.getElementById("fileInput");
+      if (fi) fi.value = "";
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("panel-" + tab).classList.add("active");
+      document.getElementById("result").style.display = "none";
+      document.getElementById("octopiiDetail").style.display = "none";
+    }
+
+    function onFileSelect(e) {
+      const file = e.target.files[0];
+      if (file) setFile(file);
+    }
+
+    function setFile(file) {
+      const name  = file.name.toLowerCase();
+      const mode  = getDlpMode();
+      const isImg = /\.(jpg|jpeg|png)$/.test(name);
+      if (!name.endsWith(".pdf") && !name.endsWith(".txt") && !(mode === "octopii" && isImg)) {
+        const allowed = mode === "octopii" ? ".pdf, .txt, .jpg, .png" : ".pdf, .txt";
+        showResult("error", `Only ${allowed} files are accepted in ${mode === "octopii" ? "Advanced DLP" : "Rule-Based"} mode.`);
+        return;
+      }
+      selectedFile = file;
+      let ext, badge;
+      if (name.endsWith(".pdf"))      { ext = "pdf"; badge = "pdf"; }
+      else if (isImg)                 { ext = name.split(".").pop(); badge = "img"; }
+      else                            { ext = "txt"; badge = "txt"; }
+      document.getElementById("fileName").innerHTML =
+        `<span class="file-badge ${badge}">${ext}</span> ${file.name} <span style="color:#aaa">(${(file.size / 1024).toFixed(1)} KB)</span>`;
+    }
+
+    function onDragOver(e) {
+      e.preventDefault();
+      document.getElementById("dropZone").classList.add("over");
+    }
+    function onDragLeave(e) {
+      document.getElementById("dropZone").classList.remove("over");
+    }
+    function onDrop(e) {
+      e.preventDefault();
+      document.getElementById("dropZone").classList.remove("over");
+      const file = e.dataTransfer.files[0];
+      if (file) setFile(file);
+    }
+
+    function readFileAsBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // result is "data:application/pdf;base64,<data>" — strip the prefix
+          const base64 = reader.result.split(",")[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function sendToWebhook() {
+      const btn    = document.getElementById("sendBtn");
+      const destUrl = document.getElementById("urlInput").value.trim();
+
+      btn.disabled = true;
+      btn.textContent = "Inspecting…";
+      document.getElementById("result").style.display = "none";
+
+      let body_base64, content_type;
+
+      try {
+        if (activeTab === "text") {
+          const text = document.getElementById("textInput").value.trim();
+          if (!text) { showResult("error", "Please enter some text to inspect."); return; }
+          body_base64  = btoa(unescape(encodeURIComponent(text)));
+          content_type = "text/plain";
+        } else {
+          if (!selectedFile) { showResult("error", "Please select a file first."); return; }
+          const n = selectedFile.name.toLowerCase();
+          if (n.endsWith(".pdf"))            content_type = "application/pdf";
+          else if (/\.(jpg|jpeg)$/.test(n)) content_type = "image/jpeg";
+          else if (n.endsWith(".png"))       content_type = "image/png";
+          else                               content_type = "text/plain";
+          body_base64 = await readFileAsBase64(selectedFile);
+        }
+
+        const resp = await fetch("http://localhost:8080/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: destUrl, content_type, body_base64, dlp_mode: getDlpMode() })
+        });
+
+        const data = await resp.json();
+
+        const decision  = (resp.status === 403 ? data.details : data.policyDecision) || {};
+        const engine    = decision.dlp_mode === "octopii" ? "Advanced DLP" : "Rule-Based";
+        const riskLevel = decision.risk_level ||
+                          (resp.status === 403 ? "high" : (resp.ok ? "low" : "medium"));
+        const itemName  = (activeTab === "file" && selectedFile)
+                        ? selectedFile.name
+                        : (document.getElementById("textInput").value.trim().slice(0, 40) || "text input");
+        if (resp.status === 403) {
+          showResult("blocked", `BLOCKED by DLP policy  [engine: ${engine}]\n\n` + JSON.stringify(data, null, 2), data);
+        } else if (resp.ok) {
+          showResult("allowed", `ALLOWED — forwarded successfully  [engine: ${engine}]\n\n` + JSON.stringify(data, null, 2), data);
+        } else {
+          showResult("error", "Backend error\n\n" + JSON.stringify(data, null, 2));
+        }
+        addToHistory(itemName, riskLevel, engine);
+      } catch (err) {
+        showResult("error", "Request failed: " + err.message + "\n\nMake sure the webhook is running on http://localhost:8080");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Inspect with DLP";
+      }
+    }
+
+    function showResult(type, message, data) {
+      const result = document.getElementById("result");
+      result.className = type;
+      result.textContent = message;
+      result.style.display = "block";
+      const detail = document.getElementById("octopiiDetail");
+      const od = data
+        ? ((data.details || {}).octopii_detail || (data.policyDecision || {}).octopii_detail)
+        : null;
+      if (od) { renderOctopiiDetail(od); detail.style.display = "block"; }
+      else    { detail.style.display = "none"; }
+    }
+
+    function renderOctopiiDetail(od) {
+      const rows = [
+        ["PII Class",      od.pii_class || "None detected"],
+        ["Confidence",     od.score != null ? String(od.score) : "-"],
+        ["Country",        od.country_of_origin || "-"],
+        ["Emails",         (od.emails && od.emails.length)         ? od.emails.join(", ")   : "-"],
+        ["Phone Numbers",  (od.phone_numbers && od.phone_numbers.length) ? od.phone_numbers.join(", ") : "-"],
+        ["Identifiers",    (od.identifiers && od.identifiers.length)     ? od.identifiers.map(i => i.identifier_class || String(i)).join(", ") : "-"],
+        ["Addresses",      (od.addresses && od.addresses.length)         ? od.addresses.join(", ")   : "-"],
+        ["Faces Detected", od.faces != null ? String(od.faces) : "-"],
+      ];
+      document.getElementById("octopiiDetail").innerHTML =
+        `<div class="od-title">DLP Scan Analysis</div>` +
+        rows.map(([k, v]) =>
+          `<div class="od-row"><span class="od-key">${k}</span><span class="od-val">${v}</span></div>`
+        ).join("");
+    }
+  </script>
+</body>
+</html>

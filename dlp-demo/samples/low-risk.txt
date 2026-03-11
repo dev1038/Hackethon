@@ -1,0 +1,32 @@
+Weekly Team Stand-Up Notes
+===========================
+
+Date  : March 10, 2026
+Team  : Platform Engineering
+Chair : Alex Johnson
+
+Agenda
+------
+1. Sprint review — velocity and completed stories
+2. Upcoming public holiday schedule
+3. New office floor plan announcement
+4. Q2 team-building activity proposals
+
+Updates
+-------
+- The quarterly all-hands is scheduled for March 28 at 10:00 AM.
+- Office pantry will be restocked every Monday morning.
+- New standing desks have arrived; allocation lottery on Friday.
+- The team wiki has been reorganised; see the updated navigation sidebar.
+
+Action Items
+------------
+- Alex  : Share updated project roadmap by Wednesday.
+- Jordan: Book conference room for design review.
+- Sam   : Compile feedback from last sprint retrospective.
+
+Next Stand-Up
+-------------
+March 17, 2026 at 9:30 AM
+
+-- End of Notes --

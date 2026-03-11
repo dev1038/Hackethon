@@ -1,0 +1,23 @@
+Employee Record — CONFIDENTIAL
+================================
+
+Full Name  : John A. Doe
+Department : Finance
+Manager    : Jane Smith
+
+Social Security Number : 123-45-6789
+Work Email             : john.doe@company.com
+AWS Access Key         : AKIAIOSFODNN7EXAMPLE
+
+Emergency Contact
+-----------------
+Name  : Mary Doe
+Email : mary.doe@personal.com
+Phone : +1-555-0100
+
+Notes
+-----
+This record contains sensitive PII: an SSN, two email addresses, and an AWS
+access key. The DLP policy should BLOCK transmission of this document.
+
+-- End of Record --

@@ -1,0 +1,30 @@
+Internal IT Security Checklist — CONFIDENTIAL
+==============================================
+
+Service: Payment Gateway v3.1
+Owner  : Platform Engineering
+Date   : March 2026
+
+Pre-Deployment Checklist
+------------------------
+[x] Rotate all service account credentials before go-live.
+[x] Ensure bearer token expiry is set to 15 minutes.
+[x] Remove hardcoded secret keys from source code.
+[x] Confirm access key rotation policy is in place (every 90 days).
+[x] Review sensitive configuration files for accidental commits.
+[x] Verify password complexity policy enforced (min 14 chars).
+[x] Confirm confidential data is encrypted at rest (AES-256).
+
+Reminders
+---------
+- Never store plaintext passwords in the database.
+- All private keys must be stored in the secrets manager.
+- Auth tokens must not be logged in application logs.
+- Confidential environment variables must be injected via Vault.
+
+Risk Assessment
+---------------
+Current posture: Medium — pending credential rotation review.
+Next review due: April 1, 2026.
+
+-- End of Checklist --
