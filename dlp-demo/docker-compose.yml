@@ -5,7 +5,7 @@ services:
       - "5000:5000"
     volumes:
       - ./backend:/app
-      - ../Octopii/Octopii:/opt/octopii
+      - ../Octopii:/opt/octopii
 
   webhook:
     build: ./interception/webhook
