@@ -1,0 +1,19 @@
+Employee Record - Confidential
+
+Employee Name: John Smith
+Department: Engineering
+
+Social Security Number: 456-78-9012
+SSN: 456-78-9012
+
+Phone: +1 555-867-5309
+Telephone: 555-123-4567
+Contact: john.smith@company.com
+
+Social Security Administration Reference
+United States of America  USA
+Security Verification Code: 7841
+Social Insurance on file
+
+Notes: Please verify SSN before processing payroll.
+Social security details must remain confidential.

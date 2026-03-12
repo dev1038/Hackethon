@@ -1,0 +1,17 @@
+Team Standup Notes
+Date: March 12, 2026
+
+Attendees: Alice, Bob, Charlie
+
+Topics Discussed:
+- Sprint velocity is on track
+- Code review backlog reduced by 40 percent
+- Deployment scheduled for next Tuesday
+- Documentation updates pending
+
+Action Items:
+- Alice: finish feature branch by Thursday
+- Bob: review pull requests
+- Charlie: update release notes
+
+Next meeting: March 19, 2026

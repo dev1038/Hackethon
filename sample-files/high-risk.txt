@@ -1,0 +1,24 @@
+Payment Card Data - Highly Restricted
+
+Cardholder: Jane Doe
+Card Type: Visa Mastercard Debit Credit
+
+Card Number: 4111 1111 1111 1111
+Bank: First National Bank
+Account: Savings Debit Card
+
+Valid Thru: 12/28
+Expires: 12/28
+Expiry: December 2028
+CVV: 456
+ATM PIN: 7890
+
+Additional Cards on File:
+- American Express (AMEX) credit card expires 06/27
+- Rupay debit card valid thru 09/26
+- Visa credit card expiry 03/28
+- Mastercard debit bank account
+
+Authorization: Bank approved. CVV verified. ATM withdrawal limit: $500.
+Debit credit transactions require valid card. Mastercard Visa accepted.
+Rupay AMEX American Express thru valid expires expiry atm bank credit debit.
