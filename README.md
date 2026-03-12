@@ -1,4 +1,4 @@
-# DLP Demo — AI-Powered Data Loss Prevention
+# DLP Demo — Data Loss Prevention
 
 A hackathon project that demonstrates an end-to-end **Data Loss Prevention (DLP)** pipeline.  
 Files uploaded through a browser UI are intercepted by a Node.js webhook, scanned by a Python/Flask backend powered by [Octopii](https://github.com/redhuntlabs/Octopii) (an open-source PII scanner), and either **blocked** or **allowed** based on a risk score — with low-risk files automatically saved to a download area.
@@ -13,7 +13,7 @@ Files uploaded through a browser UI are intercepted by a Node.js webhook, scanne
 4. [Prerequisites](#prerequisites)
 5. [Reproducing the Use Case](#reproducing-the-use-case)
 6. [Test Files](#test-files)
-7. [Further Improvements — SSL/TLS Inspection](#further-improvements--ssltls-inspection)
+7. [SSL/TLS Inspection — Implemented](#ssltls-inspection--implemented)
 
 ---
 
@@ -53,7 +53,7 @@ This demo simulates that scenario in a local Docker environment:
                           │  POST /upload  (JSON + base64 body)
                           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Webhook  — Node.js / Express  (Docker, localhost:8080)          │
+│  Webhook  — Node.js / Express  (Docker, localhost:8443)          │
 │  • Receives file + metadata                                      │
 │  • Forwards to DLP backend for inspection                        │
 │  • On ALLOW + low-risk: saves file to /tmp/dlp-<timestamp>.*     │
@@ -101,7 +101,7 @@ This demo simulates that scenario in a local Docker environment:
 | Service | Host Port | Container Port | Technology |
 |---------|-----------|----------------|------------|
 | Web UI (Dashboard) | **3000** | — (static files) | `python3 -m http.server` |
-| Webhook (interceptor) | **8080** | 8080 | Node.js / Express |
+| Webhook (interceptor) | **8443** | 8443 | Node.js / Express (HTTPS) |
 | DLP Backend | **5000** | 5000 | Python / Flask |
 
 ---
@@ -156,7 +156,7 @@ This starts two containers:
 | Container | Exposes |
 |-----------|---------|
 | `dlp-demo-backend-1` | `localhost:5000` |
-| `dlp-demo-webhook-1` | `localhost:8080` |
+| `dlp-demo-webhook-1` | `localhost:8443` (HTTPS) |
 
 Verify both are running:
 
@@ -177,7 +177,7 @@ python3 -m http.server 3000 --bind 0.0.0.0
 
 Navigate to **[http://localhost:3000](http://localhost:3000)** in your browser.
 
-The destination URL field auto-fills to `http://<hostname>:8080/upload`.  
+The destination URL field auto-fills to `https://<hostname>:8443/upload`.  
 If it does not, enter it manually.
 
 ### 5. Upload a file and observe DLP in action
@@ -231,98 +231,212 @@ python3 generate_test_files.py
 
 ---
 
-## Further Improvements — SSL/TLS Inspection
+## SSL/TLS Inspection — Implemented
 
-The current demo intercepts plain HTTP traffic at the application layer.  
-A production-grade DLP system needs to inspect **encrypted HTTPS** traffic as well.  
-Below is the roadmap for adding full TLS interception.
+The demo uses **three layers of security** between the browser and the webhook: TLS transport encryption, SPKI certificate pinning, and AES-256-GCM application-layer encryption.
 
-### How TLS Inspection Works
+### Traffic Flow
 
 ```
-Client ──TLS──► mitmproxy (MITM CA) ──TLS──► Destination Server
-                     │
-                     ▼  (decrypted copy)
-              DLP Inspection Engine
+Browser (localhost:3000)
+  │
+  │  1. verifyCertPin()  — fetch /public-key, SHA-256 SPKI hash, compare to pinned value
+  │  2. encryptPayload() — AES-256-GCM encrypt with PSK → [IV(12) | ciphertext | authTag(16)]
+  │  3. POST /upload     — HTTPS (TLS) carrying the encrypted payload
+  │
+  ▼
+Webhook (localhost:8443 — HTTPS)
+  │
+  │  TLS terminated with local CA-signed server cert
+  │  decryptPayload() — AES-256-GCM decrypt → recovers original base64 file data
+  │
+  ▼
+DLP Backend (localhost:5000)
+  POST /inspect — plain HTTP on the internal Docker network
 ```
 
-1. A **MITM proxy** (e.g. mitmproxy, Squid with SSL-Bump, or a custom eBPF hook) terminates the client's TLS session using a locally-trusted CA certificate.
-2. It re-encrypts the traffic toward the real destination with a fresh certificate.
-3. The decrypted payload is forwarded to the DLP engine for inspection — exactly as in the current HTTP demo.
-4. The client must **trust the MITM CA** (deployed via MDM, Group Policy, or browser config).
+---
 
-### Implementation Steps
+### Layer 1 — TLS (HTTPS on port 8443)
 
-#### Step 1 — Generate a local CA
+The Node.js webhook serves HTTPS using a locally-generated server certificate signed by a private CA.
+
+**Certificate generation** (`dlp-demo/certs/generate-certs.sh`):
 
 ```bash
-# Generate CA key and self-signed cert (valid 10 years)
-openssl req -x509 -newkey rsa:4096 -keyout dlp-ca.key \
-  -out dlp-ca.crt -days 3650 -nodes \
-  -subj "/CN=DLP Inspection CA/O=Demo/C=US"
+cd dlp-demo/certs
+bash generate-certs.sh
 ```
 
-#### Step 2 — Add mitmproxy to docker-compose.yml
+This produces:
 
-```yaml
-mitmproxy:
-  image: mitmproxy/mitmproxy
-  command: >
-    mitmweb --mode upstream:http://webhook:8080
-            --ssl-insecure
-            --cert /certs/dlp-ca.pem
-            --web-host 0.0.0.0
-  ports:
-    - "8081:8080"   # HTTPS intercept proxy
-    - "8082:8081"   # mitmweb admin UI
-  volumes:
-    - ./certs:/certs
-```
+| File | Purpose |
+|------|---------|
+| `ca.key` / `ca.crt` | Local Certificate Authority key + self-signed cert |
+| `server.key` / `server.crt` | Server TLS key + cert signed by the local CA |
+| `spki-hash.txt` | SHA-256 of the server public key (SPKI) — used for pinning |
 
-#### Step 3 — Trust the CA in the browser / OS
+The script also automatically patches `PINNED_KEY_HASH` in `index.html` after each run.
 
-**macOS:**
+**Trust the CA on macOS** (required once, so the browser accepts the cert):
+
 ```bash
 sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain dlp-ca.crt
+  -k /Library/Keychains/System.keychain \
+  dlp-demo/certs/ca.crt
 ```
 
-**Linux / Debian:**
+**Server startup** (`server.js`):
+
+```js
+const httpsServer = https.createServer(
+  { key: fs.readFileSync("/app/certs/server.key"),
+    cert: fs.readFileSync("/app/certs/server.crt") },
+  app
+);
+httpsServer.listen(8443);
+```
+
+---
+
+### Layer 2 — SPKI Certificate Pinning
+
+TLS alone prevents eavesdropping but not all man-in-the-middle attacks (e.g. a rogue CA trusted by the OS).  
+Certificate pinning adds a second check: the browser verifies that the server's **public key fingerprint** matches a hardcoded expected value.
+
+**How the SPKI hash is computed:**
+
+```
+DER-encode the SubjectPublicKeyInfo structure from the server cert
+  → SHA-256 hash
+  → base64-encode
+  → compare to PINNED_KEY_HASH in index.html
+```
+
+**Browser-side** (`index.html` — `verifyCertPin()`):
+
+```js
+const PINNED_KEY_HASH = "hEIm24rapPOPCrQ3UJXs2JvjNMkePzBKEJIzh7huzOI=";
+
+async function verifyCertPin(webhookBase) {
+  const resp = await fetch(`${webhookBase.replace(/\/upload$/, "")}/public-key`);
+  const derBuf = await resp.arrayBuffer();                          // raw SPKI DER bytes
+  const hashBuf = await crypto.subtle.digest("SHA-256", derBuf);   // SHA-256
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(hashBuf)));
+  if (b64 !== PINNED_KEY_HASH) throw new Error("Certificate pin mismatch — possible MITM!");
+}
+```
+
+**Server-side** (`server.js` — `/public-key` endpoint):
+
+```js
+app.get("/public-key", (req, res) => {
+  const cert = new crypto.X509Certificate(certPem);
+  const spkiDer = cert.publicKey.export({ type: "spki", format: "der" });
+  res.send(spkiDer);   // returns 294 bytes
+});
+```
+
+The upload is **blocked** if the hash does not match the pinned value.
+
+---
+
+### Layer 3 — AES-256-GCM Application-Layer Encryption
+
+Even if TLS is somehow stripped (e.g. a transparent proxy that re-signs with a trusted CA), the payload itself is encrypted with a Pre-Shared Key (PSK) known only to the browser and the webhook.
+
+**Key facts:**
+
+| Parameter | Value |
+|-----------|-------|
+| Algorithm | AES-256-GCM |
+| Key (PSK) | 32-byte hex string hardcoded in `index.html` and `server.js` |
+| IV / Nonce | 12 random bytes generated per upload (`crypto.getRandomValues`) |
+| Auth Tag | 16 bytes (GCM integrity tag — detects any tampering) |
+| Wire format | `base64( IV(12) \| ciphertext \| authTag(16) )` |
+
+**Browser encryption** (`index.html` — `encryptPayload()`):
+
+```js
+const PAYLOAD_KEY_HEX = "a1b2c3d4e5f6789012345678aabbccdd1122334455667788aabbccdd11223344";
+
+async function encryptPayload(base64Data) {
+  const keyBytes = hexToBytes(PAYLOAD_KEY_HEX);
+  const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["encrypt"]);
+  const iv = crypto.getRandomValues(new Uint8Array(12));           // fresh nonce every upload
+  const plaintext = new TextEncoder().encode(base64Data);
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
+  // WebCrypto appends authTag to ciphertext automatically
+  const combined = new Uint8Array(12 + encrypted.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(encrypted), 12);
+  return btoa(String.fromCharCode(...combined));                    // base64 for JSON transport
+}
+```
+
+**Webhook decryption** (`server.js` — `decryptPayload()`):
+
+```js
+const PSK = Buffer.from("a1b2c3d4e5f6789012345678aabbccdd...", "hex");
+
+function decryptPayload(encryptedBase64) {
+  const buf      = Buffer.from(encryptedBase64, "base64");
+  const iv       = buf.subarray(0, 12);                  // first 12 bytes
+  const authTag  = buf.subarray(buf.length - 16);        // last 16 bytes (GCM tag)
+  const ciphertext = buf.subarray(12, buf.length - 16);  // everything in between
+  const decipher = crypto.createDecipheriv("aes-256-gcm", PSK, iv);
+  decipher.setAuthTag(authTag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("base64");
+}
+```
+
+If the auth tag check fails (payload was tampered), `decipher.final()` throws and the request is rejected.
+
+---
+
+### Security Concepts at a Glance
+
+| Term | Role in This Demo |
+|------|------------------|
+| **TLS / HTTPS** | Encrypts the entire HTTP connection (port 8443); prevents network sniffing |
+| **Local CA** | Signs the server cert; client must explicitly trust it |
+| **SPKI** | Subject Public Key Info — the public-key portion of the server cert |
+| **SPKI Hash** | SHA-256 fingerprint of the server public key; used as the pin |
+| **Cert Pinning** | Browser checks the SPKI hash before upload — blocks MITMs using a different cert |
+| **AES-256-GCM** | Authenticated symmetric encryption; confidentiality + integrity at application layer |
+| **IV / Nonce** | Random 12 bytes per upload; ensures identical files produce different ciphertext |
+| **PSK** | Pre-Shared Key (32-byte hex); shared secret between browser and webhook |
+| **Auth Tag** | 16-byte GCM integrity tag; any modification of ciphertext causes decryption to fail |
+
+---
+
+### Regenerating Certificates
+
+Regenerate when the cert expires or you rotate keys:
+
 ```bash
-sudo cp dlp-ca.crt /usr/local/share/ca-certificates/dlp-ca.crt
-sudo update-ca-certificates
+cd dlp-demo/certs
+bash generate-certs.sh
+# Re-trust the new CA on macOS
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain ca.crt
+# Rebuild the webhook container
+cd .. && docker compose up --build -d
 ```
 
-**Browser proxy setting:**  
-Set HTTP/HTTPS proxy to `localhost:8081` and import `dlp-ca.crt` into the browser's trusted certificate store.
+The script auto-patches `PINNED_KEY_HASH` in `index.html` — hard-refresh the browser after rebuilding.
 
-#### Step 4 — Enable TLS between webhook and backend (mTLS)
+---
 
-For internal service-to-service encryption inside Docker, add TLS to the Flask backend:
-
-```python
-# main.py — enable TLS
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000,
-            ssl_context=("certs/server.crt", "certs/server.key"))
-```
-
-And update the webhook to use `https://backend:5000/inspect`.
-
-#### Step 5 — Certificate pinning bypass for native apps
-
-For mobile or desktop apps that use certificate pinning, consider:
-- **Android:** Frida / Objection to hook `TrustManager`
-- **iOS:** SSL Kill Switch 2 (jailbreak) or Network Link Conditioner proxy
-- **Electron apps:** `--ignore-certificate-errors` flag in dev mode
-
-### Summary of Planned Improvements
+### Feature Status
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| HTTP interception | ✅ Done | Node.js webhook on port 8080 |
+| HTTPS interception (TLS) | ✅ Done | Node.js webhook on port 8443 |
+| Local CA + cert generation | ✅ Done | `dlp-demo/certs/generate-certs.sh` (macOS LibreSSL compatible) |
+| SPKI certificate pinning | ✅ Done | `/public-key` endpoint + `verifyCertPin()` in browser |
+| AES-256-GCM payload encryption | ✅ Done | PSK shared between `index.html` and `server.js` |
 | File-type detection from magic bytes | ✅ Done | PDF, PNG, JPEG, TXT |
-| HTTPS/TLS interception | 🔲 Planned | mitmproxy + local CA |
 | mTLS between internal services | 🔲 Planned | Flask ssl_context |
 | Browser extension interceptor | 🔲 Planned | `dlp-demo/interception/browser-extension/` |
 | Policy engine (allow/block rules) | 🔲 Planned | `dlp-demo/policies/` |

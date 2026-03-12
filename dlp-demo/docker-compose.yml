@@ -10,10 +10,11 @@ services:
   webhook:
     build: ./interception/webhook
     ports:
-      - "8080:8080"
+      - "8443:8443"
     volumes:
       - ./interception/webhook:/app
       - webhook_node_modules:/app/node_modules
+      - ./certs:/app/certs:ro
     depends_on:
       - backend
 
